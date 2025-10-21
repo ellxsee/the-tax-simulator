@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tax Simulator • 2025 Multi-Page (Calc Enabled)</title>
+  <style>
+    :root { --bg:#0f172a; --panel:#111827; --ink:#e5e7eb; --muted:#9ca3af; --accent:#22d3ee; --ok:#34d399; --warn:#fbbf24; }
+    html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui}
+    header{background:#111827;padding:12px 20px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:10;border-bottom:1px solid #1f2937}
+    header h1{margin:0;font-size:20px}
+    nav{display:flex;gap:8px;flex-wrap:wrap}
+    nav button{border:0;border-radius:8px;padding:8px 12px;cursor:pointer;background:var(--panel);color:var(--ink)}
+    nav button.active{background:var(--accent);color:#001018;font-weight:700}
+    .wrap{max-width:1000px;margin:auto;padding:18px}
+    section.page{display:none;padding:10px}
+    section.page.active{display:block}
+    .panel{background:var(--panel);padding:16px;border-radius:12px;margin-bottom:16px;border:1px solid #1f2937}
+    .grid{display:grid;gap:12px}
+    .cols-2{grid-template-columns:1fr 1fr}
+    .cols-3{grid-template-columns:repeat(3,1fr)}
+    label{display:block;margin:8px 0 4px;color:var(--muted)}
+    input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:var(--ink)}
+    .btn{background:var(--accent);border:0;border-radius:8px;padding:10px 14px;color:#001018;font-weight:700;cursor:pointer}
+    .btn.ghost{background:#223042;color:var(--ink)}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .note{color:var(--muted);font-size:12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #1f2937;padding:8px;text-align:right}
+    th:first-child,td:first-child{text-align:left}
+    .money{font-variant-numeric:tabular-nums}
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <h1>Tax Simulator 2025</h1>
+    <nav id="navTabs" class="row"></nav>
+    <div class="row" style="margin-left:auto">
+      <button class="btn ghost" id="saveBtn">💾 Save</button>
+      <button class="btn ghost" id="clearBtn">🗑️ Clear</button>
+      <button class="btn" id="printBtn">🖨️ Print/PDF</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <!-- Filing & Household -->
+    <section class="page active" id="page-filing" data-title="Filing">
+      <h2>Filing & Household (2025)</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Filing Status</label>
+          <select name="filing.status">
+            <option value="single">Single</option>
+            <option value="mfj">Married Filing Jointly</option>
+            <option value="mfs">Married Filing Separately</option>
+            <option value="hoh">Head of Household</option>
+            <option value="qwid">Qualifying Widow(er)</option>
+          </select>
+          <label>Dependents (count)</label><input name="filing.deps" type="number" min="0" step="1" />
+        </div>
+        <div>
+          <label>Standard Deduction (2025, editable)</label><input name="filing.stdDed" type="number" step="0.01" placeholder="Enter per status" />
+          <label>Additional SD (age 65+/blind) total</label><input name="filing.addSD" type="number" step="0.01" value="0" />
+          <div class="note">Enter the 2025 standard deduction for the chosen status (training/demo). Values can be updated as IRS figures finalize.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Tax Filers</h3>
+        <div class="grid cols-2">
+          <div>
+            <label>Primary — Full Name</label><input name="filer.p1.name" placeholder="Jane Q. Taxpayer" />
+            <label>Primary — SSN (demo)</label><input name="filer.p1.ssn" placeholder="123-45-6789" />
+            <label>Primary — DOB</label><input name="filer.p1.dob" type="date" />
+          </div>
+          <div>
+            <label>Spouse — Full Name (if MFJ)</label><input name="filer.p2.name" placeholder="John A. Taxpayer" />
+            <label>Spouse — SSN (demo)</label><input name="filer.p2.ssn" placeholder="123-45-6789" />
+            <label>Spouse — DOB</label><input name="filer.p2.dob" type="date" />
+            <div class="note">Leave spouse fields blank unless filing status is MFJ.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Dependents</h3>
+        <div id="depsList"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="addDepBtn">＋ Add Dependent</button>
+          <div class="note">Each dependent: name, SSN (demo), DOB, relationship.</div>
+        </div>
+      </div>
+
+      <div class="row"><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- W2 -->
+    <section class="page" id="page-w2" data-title="W‑2">
+      <h2>W‑2 (Wage and Tax Statement)</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Box 1 — Wages, tips, other comp</label><input name="w2.box1" type="number" step="0.01" />
+          <label>Box 2 — Federal income tax withheld</label><input name="w2.box2" type="number" step="0.01" />
+          <label>Box 3 — Social security wages</label><input name="w2.box3" type="number" step="0.01" />
+          <label>Box 4 — Social security tax withheld</label><input name="w2.box4" type="number" step="0.01" />
+          <label>Box 5 — Medicare wages and tips</label><input name="w2.box5" type="number" step="0.01" />
+          <label>Box 6 — Medicare tax withheld</label><input name="w2.box6" type="number" step="0.01" />
+          <label>Box 7 — Social security tips</label><input name="w2.box7" type="number" step="0.01" />
+          <label>Box 8 — Allocated tips</label><input name="w2.box8" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Box 10 — Dependent care benefits</label><input name="w2.box10" type="number" step="0.01" />
+          <label>Box 11 — Nonqualified plans</label><input name="w2.box11" type="number" step="0.01" />
+          <label>Box 12 — Codes/amounts</label><textarea name="w2.box12" rows="5" placeholder="e.g., 12a: D 5000; 12b: DD 2400"></textarea>
+          <label>Box 13 — Statutory/Retirement/Third‑party</label><input name="w2.box13" placeholder="check any that apply" />
+          <label>Box 14 — Other</label><textarea name="w2.box14" rows="3"></textarea>
+          <label>Box 15‑20 — State/Local info</label><textarea name="w2.box15_20" rows="5" placeholder="State wages & tax (enter totals in State page withholding)"></textarea>
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- 1099 NEC -->
+    <section class="page" id="page-1099nec" data-title="1099‑NEC">
+      <h2>Form 1099‑NEC</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Box 1 — Nonemployee compensation</label><input name="nec.box1" type="number" step="0.01" />
+          <label>Box 4 — Federal income tax withheld</label><input name="nec.box4" type="number" step="0.01" />
+          <label>Box 5 — State tax withheld</label><input name="nec.box5" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Box 6 — State/Payer’s state no.</label><input name="nec.box6" />
+          <label>Box 7 — State income</label><input name="nec.box7" type="number" step="0.01" />
+          <label>Payer/Recipient details</label><textarea name="nec.meta" rows="4" placeholder="Payer TIN, Recipient TIN, address, etc."></textarea>
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- 1099 G -->
+    <section class="page" id="page-1099g" data-title="1099‑G">
+      <h2>Form 1099‑G</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Box 1 — Unemployment compensation</label><input name="g.box1" type="number" step="0.01" />
+          <label>Box 2 — State/local income tax refunds</label><input name="g.box2" type="number" step="0.01" />
+          <label>Box 3 — Box 2 tax year</label><input name="g.box3" placeholder="YYYY" />
+          <label>Box 4 — Federal income tax withheld</label><input name="g.box4" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Box 5 — RTAA payments</label><input name="g.box5" type="number" step="0.01" />
+          <label>Box 6 — Taxable grants</label><input name="g.box6" type="number" step="0.01" />
+          <label>Box 11 — State income tax withheld</label><input name="g.box11" type="number" step="0.01" />
+          <label>Payer/Recipient details</label><textarea name="g.meta" rows="4"></textarea>
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- 1099 INT -->
+    <section class="page" id="page-1099int" data-title="1099‑INT">
+      <h2>Form 1099‑INT (Interest)</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Box 1 — Interest income</label><input name="int.box1" type="number" step="0.01" />
+          <label>Box 2 — Early withdrawal penalty</label><input name="int.box2" type="number" step="0.01" />
+          <label>Box 3 — U.S. bond/Treasury interest</label><input name="int.box3" type="number" step="0.01" />
+          <label>Box 4 — Federal income tax withheld</label><input name="int.box4" type="number" step="0.01" />
+          <label>Box 5 — Investment expenses</label><input name="int.box5" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Box 6 — Foreign tax paid</label><input name="int.box6" type="number" step="0.01" />
+          <label>Box 8 — Tax‑exempt interest</label><input name="int.box8" type="number" step="0.01" />
+          <label>Box 9 — PAB tax‑exempt interest</label><input name="int.box9" type="number" step="0.01" />
+          <label>Box 10 — Market discount</label><input name="int.box10" type="number" step="0.01" />
+          <label>Box 11 — Bond premium</label><input name="int.box11" type="number" step="0.01" />
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- 1099 DIV -->
+    <section class="page" id="page-1099div" data-title="1099‑DIV">
+      <h2>Form 1099‑DIV (Dividends)</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Box 1a — Total ordinary dividends</label><input name="div.box1a" type="number" step="0.01" />
+          <label>Box 1b — Qualified dividends</label><input name="div.box1b" type="number" step="0.01" />
+          <label>Box 2a — Total capital gain distributions</label><input name="div.box2a" type="number" step="0.01" />
+          <label>Box 2b — Unrecap. Sec. 1250 gain</label><input name="div.box2b" type="number" step="0.01" />
+          <label>Box 2c — Sec. 1202 gain</label><input name="div.box2c" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Box 2d — Collectibles (28%) gain</label><input name="div.box2d" type="number" step="0.01" />
+          <label>Box 3 — Nondividend distributions</label><input name="div.box3" type="number" step="0.01" />
+          <label>Box 4 — Federal income tax withheld</label><input name="div.box4" type="number" step="0.01" />
+          <label>Box 6 — Foreign tax paid</label><input name="div.box6" type="number" step="0.01" />
+          <label>Box 11 — Exempt‑interest dividends</label><input name="div.box11" type="number" step="0.01" />
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- 1099 R -->
+    <section class="page" id="page-1099r" data-title="1099‑R">
+      <h2>Form 1099‑R (Retirement Distributions)</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Box 1 — Gross distribution</label><input name="r.box1" type="number" step="0.01" />
+          <label>Box 2a — Taxable amount</label><input name="r.box2a" type="number" step="0.01" />
+          <label>Box 2b — Taxable amount not determined / total distribution</label><input name="r.box2b" placeholder="check boxes if applicable" />
+          <label>Box 4 — Federal income tax withheld</label><input name="r.box4" type="number" step="0.01" />
+          <label>Box 7 — Distribution code(s)</label><input name="r.box7" />
+        </div>
+        <div>
+          <label>Box 9a — Total distribution %</label><input name="r.box9a" type="number" step="0.01" />
+          <label>Box 12 — State tax withheld</label><input name="r.box12" type="number" step="0.01" />
+          <label>Box 13 — State/Payer’s state no.</label><input name="r.box13" />
+          <label>Box 14 — State distribution</label><input name="r.box14" type="number" step="0.01" />
+          <label>Payer/Recipient details</label><textarea name="r.meta" rows="4"></textarea>
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- SSA 1099 -->
+    <section class="page" id="page-ssa1099" data-title="SSA‑1099">
+      <h2>Form SSA‑1099 (Social Security)</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Box 3 — Benefits paid in 20XX</label><input name="ssa.box3" type="number" step="0.01" />
+          <label>Box 4 — Benefits repaid in 20XX</label><input name="ssa.box4" type="number" step="0.01" />
+          <label>Box 5 — Net benefits for 20XX</label><input name="ssa.box5" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Box 6 — Voluntary fed tax withheld</label><input name="ssa.box6" type="number" step="0.01" />
+          <label>Medicare premiums (info)</label><input name="ssa.medicare" type="number" step="0.01" />
+          <label>Notes</label><textarea name="ssa.meta" rows="4"></textarea>
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- 1095 A -->
+    <section class="page" id="page-1095a" data-title="1095‑A">
+      <h2>Form 1095‑A (Marketplace Health)</h2>
+      <div class="panel">
+        <div class="note">Enter totals (A/B/C). Premium Tax Credit reconciliation is not automated in this demo.</div>
+        <div class="grid cols-3">
+          <div>
+            <label>Column A — Monthly premiums (total)</label><input name="1095a.colA" type="number" step="0.01" />
+            <label>Column C — Advance PTC received (total)</label><input name="1095a.colC" type="number" step="0.01" />
+          </div>
+          <div>
+            <label>Column B — SLCSP (total)</label><input name="1095a.colB" type="number" step="0.01" />
+            <label>Household size</label><input name="1095a.hh" type="number" />
+          </div>
+          <div>
+            <label>FPL % (if known)</label><input name="1095a.fpl" type="number" step="0.01" />
+            <label>Notes</label><textarea name="1095a.meta" rows="3"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- Schedule C -->
+    <section class="page" id="page-schc" data-title="Schedule C">
+      <h2>Schedule C — Business</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Gross income</label><input name="schc.gross" type="number" step="0.01" />
+          <label>Returns & allowances</label><input name="schc.returns" type="number" step="0.01" />
+          <label>Other income</label><input name="schc.other" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Total expenses</label><input name="schc.exp" type="number" step="0.01" />
+          <label>Home office (incl. in exp)</label><input name="schc.home" type="number" step="0.01" />
+          <label>Vehicle (incl. in exp)</label><input name="schc.veh" type="number" step="0.01" />
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- Schedule E -->
+    <section class="page" id="page-sche" data-title="Schedule E">
+      <h2>Schedule E — Rentals/Royalties</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Income</label><input name="sche.inc" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Expenses</label><input name="sche.exp" type="number" step="0.01" />
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- Schedule A -->
+    <section class="page" id="page-scha" data-title="Schedule A">
+      <h2>Schedule A — Itemized</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Medical (over floor)</label><input name="scha.med" type="number" step="0.01" />
+          <label>SALT taxes (cap)</label><input name="scha.salt" type="number" step="0.01" />
+          <label>Mortgage interest</label><input name="scha.int" type="number" step="0.01" />
+        </div>
+        <div>
+          <label>Charitable gifts</label><input name="scha.char" type="number" step="0.01" />
+          <label>Other itemized</label><input name="scha.other" type="number" step="0.01" />
+          <label>Standard deduction (override)</label><input name="std.ded" type="number" step="0.01" />
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next">Next ➜</button></div>
+    </section>
+
+    <!-- State -->
+    <section class="page" id="page-state" data-title="State">
+      <h2>State Tax Module</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>State</label><select name="state.code"><option>AZ</option><option>CA</option><option>FL</option><option>NY</option><option>TX</option><option>WA</option></select>
+          <label>Mode</label><select name="state.mode"><option value="brackets">Tiered</option><option value="flat">Flat</option></select>
+          <label>Flat rate</label><input name="state.flat" type="number" step="0.0001" value="0.05" />
+        </div>
+        <div>
+          <label>Adjustments (+/‑ per line)</label><textarea name="state.adj" rows="5"></textarea>
+          <label>Credits</label><input name="state.credits" type="number" step="0.01" />
+          <label>Withholding (total state)</label><input name="state.wh" type="number" step="0.01" />
+        </div>
+      </div>
+      <details class="panel"><summary>Demo State Tables (editable JSON)</summary>
+        <pre id="stateJson" style="white-space:pre-wrap"></pre>
+      </details>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button><button class="btn next" id="toResults">Calculate ➜</button></div>
+    </section>
+
+    <!-- Payment -->
+    <section class="page" id="page-pay" data-title="Payment">
+      <h2>Payments & Receipt</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <label>Service tier</label><select name="pay.tier"><option>Basic</option><option>Deluxe</option><option>Premium</option></select>
+          <label>Method</label><select name="pay.method"><option>Card</option><option>ACH</option><option>Cash (demo)</option></select>
+          <button class="btn" id="markPaid">Mark as Paid</button>
+          <div id="paidBadge" class="pill" style="display:none">✅ Paid</div>
+        </div>
+        <div>
+          <label>Receipt notes</label><textarea name="pay.notes" rows="6"></textarea>
+          <button class="btn ghost" id="genReceipt">Generate Receipt</button>
+        </div>
+      </div>
+      <div class="panel" id="receiptPanel" style="display:none">
+        <h3>🧾 Receipt</h3>
+        <div id="receiptBody"></div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button></div>
+    </section>
+
+    <!-- Results -->
+    <section class="page" id="page-results" data-title="Results">
+      <h2>Estimated Return (2025)</h2>
+      <div class="panel grid cols-2">
+        <div>
+          <table>
+            <tbody>
+              <tr><td>W‑2 wages</td><td class="money" id="outW2">$0.00</td></tr>
+              <tr><td>NEC/Business net (to Sch C)</td><td class="money" id="outNEC">$0.00</td></tr>
+              <tr><td>1099‑G taxable</td><td class="money" id="outG">$0.00</td></tr>
+              <tr><td>Interest (1099‑INT, taxable)</td><td class="money" id="outINT">$0.00</td></tr>
+              <tr><td>Dividends (ordinary)</td><td class="money" id="outDIV">$0.00</td></tr>
+              <tr><td>1099‑R taxable</td><td class="money" id="outR">$0.00</td></tr>
+              <tr><td>Schedule E net</td><td class="money" id="outE">$0.00</td></tr>
+              <tr><th>Total Income</th><th class="money" id="outTotInc">$0.00</th></tr>
+              <tr><td>Itemized deduction</td><td class="money" id="outItemized">$0.00</td></tr>
+              <tr><td>Standard deduction</td><td class="money" id="outStd">$0.00</td></tr>
+              <tr><th>Taxable Income</th><th class="money" id="outTaxable">$0.00</th></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <table>
+            <tbody>
+              <tr><td>Federal tax (brackets)</td><td class="money" id="outFedTax">$0.00</td></tr>
+              <tr><td>Self‑employment tax</td><td class="money" id="outSETax">$0.00</td></tr>
+              <tr><td>State tax (after credits)</td><td class="money" id="outStateTax">$0.00</td></tr>
+              <tr><td>Total withholdings (fed+state)</td><td class="money" id="outWH">$0.00</td></tr>
+              <tr><th>Refund / Amount Due</th><th class="money" id="outRefund">$0.00</th></tr>
+            </tbody>
+          </table>
+          <div class="note">Credits such as CTC/EIC are not yet modeled; this is an educational estimate.</div>
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost prev">⬅ Back</button></div>
+    </section>
+
+  </main>
+
+  <script>
+    // ---------- Helpers ----------
+    const STORAGE_KEY = 'taxsim2025_calc_v1';
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const byId = id=> document.getElementById(id);
+    const money = n=> new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(isFinite(n)?n:0);
+    const num = v=> { const x = parseFloat(v); return isFinite(x)?x:0; };
+
+    // Demo federal brackets for 2025 (EDITABLE). Format: status: [ [limit, rate], ... , [null, topRate] ]
+    const fedBrackets = {
+      single:  [[11000,0.10],[44725,0.12],[95375,0.22],[182100,0.24],[231250,0.32],[578125,0.35],[null,0.37]],
+      mfj:     [[22000,0.10],[89450,0.12],[190750,0.22],[364200,0.24],[462500,0.32],[693750,0.35],[null,0.37]],
+      mfs:     [[11000,0.10],[44725,0.12],[95375,0.22],[182100,0.24],[231250,0.32],[346875,0.35],[null,0.37]],
+      hoh:     [[15700,0.10],[59850,0.12],[95350,0.22],[182100,0.24],[231250,0.32],[578100,0.35],[null,0.37]],
+      qwid:    [[22000,0.10],[89450,0.12],[190750,0.22],[364200,0.24],[462500,0.32],[693750,0.35],[null,0.37]]
+    };
+
+    // Demo state tables (extend as needed)
+    const states = {
+      AZ: { name:"Arizona", mode:"brackets", brackets:[[28700,0.0236],[57500,0.0298],[172000,0.0336],[null,0.042]], flat:0.0285 },
+      CA: { name:"California", mode:"brackets", brackets:[[10412,0.01],[24684,0.02],[38959,0.04],[54081,0.06],[68350,0.08],[349137,0.093],[418961,0.103],[698271,0.113],[null,0.123]], flat:0 },
+      FL: { name:"Florida", mode:"flat", brackets:[], flat:0 },
+      NY: { name:"New York", mode:"brackets", brackets:[[8500,0.04],[11700,0.045],[13900,0.0525],[21400,0.059],[80650,0.0621],[215400,0.0649],[1077550,0.0685],[null,0.109]], flat:0 },
+      TX: { name:"Texas", mode:"flat", brackets:[], flat:0 },
+      WA: { name:"Washington", mode:"flat", brackets:[], flat:0 }
+    };
+
+    // ---------- Navigation ----------
+    const pages = Array.from(document.querySelectorAll('.page'));
+    const nav = document.getElementById('navTabs');
+    pages.forEach((p,i)=>{
+      const btn = document.createElement('button');
+      btn.textContent = p.dataset.title || p.querySelector('h2').textContent;
+      btn.addEventListener('click',()=>showPage(i)); nav.appendChild(btn);
+    });
+    function showPage(i){
+      pages.forEach((p,j)=>p.classList.toggle('active',i===j));
+      Array.from(nav.children).forEach((b,j)=>b.classList.toggle('active',i===j));
+      window.scrollTo({top:0,behavior:'smooth'});
+      if(pages[i].id==='page-results') compute();
+      if(pages[i].id==='page-state') renderStateJson();
+    }
+    document.body.addEventListener('click',e=>{
+      if(e.target.classList.contains('next')){ const idx = activeIndex(); if(idx<pages.length-1) showPage(idx+1); }
+      if(e.target.classList.contains('prev')){ const idx = activeIndex(); if(idx>0) showPage(idx-1); }
+    });
+    function activeIndex(){ return pages.findIndex(p=>p.classList.contains('active')); }
+
+    // ---------- Persistence ----------
+    function registerInputs(){
+      const inputs = document.querySelectorAll('input[name], select[name], textarea[name]');
+      inputs.forEach(el=>{
+        const key = el.name;
+        if(data[key] !== undefined){ if(el.type==='checkbox') el.checked = !!data[key]; else el.value = data[key]; }
+        el.addEventListener('input',()=> saveField(el));
+        el.addEventListener('change',()=> saveField(el));
+      });
+    }
+    function saveField(el){ data[el.name] = (el.type==='checkbox')? el.checked : el.value; schedulePersist(); }
+    let persistTimer; function schedulePersist(){ clearTimeout(persistTimer); persistTimer=setTimeout(()=>localStorage.setItem(STORAGE_KEY, JSON.stringify(data)), 150); }
+
+    // ---------- Calculations ----------
+    function val(k){ return num(data[k] ?? 0); }
+    function taxFromBrackets(income, brackets){ let tax=0, prev=0; for(const [limit,rate] of brackets){ if(limit===null){ tax += Math.max(0,income-prev)*rate; break; } const amt=Math.max(0,Math.min(income,limit)-prev); tax += amt*rate; prev=limit; if(income<=limit) break; } return tax; }
+
+    function compute(){
+      // Incomes
+      const w2 = val('w2.box1');
+      const nec = val('nec.box1'); // treated as business gross (simplified)
+      const gUnemp = val('g.box1');
+      const gRefund = val('g.box2'); // taxable only if itemized prior year — left as entered
+      const intTaxable = val('int.box1');
+      const divOrd = val('div.box1a'); // qualified not separately taxed here (demo)
+      const rTaxable = val('r.box2a');
+      const eNet = Math.max(0, val('sche.inc') - val('sche.exp'));
+
+      // Schedule C net (NEC flows in) — simplified
+      const schcNet = Math.max(0, (nec + val('schc.gross') - val('schc.returns') + val('schc.other')) - val('schc.exp'));
+
+      const totalIncome = w2 + gUnemp + gRefund + intTaxable + divOrd + rTaxable + eNet + schcNet;
+
+      // Deductions
+      const itemized = val('scha.med') + val('scha.salt') + val('scha.int') + val('scha.char') + val('scha.other');
+      const stdOverride = val('std.ded');
+      const stdEntered = val('filing.stdDed') + val('filing.addSD');
+      const standard = stdOverride>0 ? stdOverride : stdEntered; // take override if provided
+      const taxable = Math.max(0, totalIncome - Math.max(itemized, standard));
+
+      // Federal tax via brackets
+      const status = (data['filing.status']||'single');
+      const fedTax = taxFromBrackets(taxable, fedBrackets[status] || fedBrackets.single);
+
+      // Self‑employment tax (approx): 92.35% of Sch C net, SS + Medicare
+      const seIncome = Math.max(0, schcNet * 0.9235);
+      const ssBase = 175000; // editable if desired
+      const ssTax = Math.min(seIncome, ssBase) * 0.124;
+      const medTax = seIncome * 0.029;
+      const seTax = ssTax + medTax;
+
+      // State tax
+      const stCode = (data['state.code']||'AZ');
+      const stMode = (data['state.mode']||states[stCode]?.mode||'brackets');
+      const stAdj = parseAdj(data['state.adj']||'');
+      const stateTaxable = Math.max(0, taxable + stAdj);
+      let stateTax = 0;
+      if(stMode==='flat'){ const rate = num(data['state.flat']||states[stCode]?.flat||0); stateTax = stateTaxable * rate; }
+      else { const br = states[stCode]?.brackets || []; stateTax = taxFromBrackets(stateTaxable, br); }
+      stateTax = Math.max(0, stateTax - val('state.credits'));
+
+      // Withholdings (federal + state)
+      const fedWH = val('w2.box2') + val('nec.box4') + val('g.box4') + val('int.box4') + val('div.box4') + val('r.box4') + val('ssa.box6');
+      const stateWH = val('state.wh') + val('g.box11');
+      const withholdings = fedWH + stateWH;
+
+      const totalLiability = fedTax + seTax + stateTax;
+      const refund = withholdings - totalLiability;
+
+      // Outputs
+      byId('outW2').textContent = money(w2);
+      byId('outNEC').textContent = money(schcNet);
+      byId('outG').textContent = money(gUnemp + gRefund);
+      byId('outINT').textContent = money(intTaxable);
+      byId('outDIV').textContent = money(divOrd);
+      byId('outR').textContent = money(rTaxable);
+      byId('outE').textContent = money(eNet);
+      byId('outTotInc').textContent = money(totalIncome);
+      byId('outItemized').textContent = money(itemized);
+      byId('outStd').textContent = money(standard);
+      byId('outTaxable').textContent = money(taxable);
+      byId('outFedTax').textContent = money(fedTax);
+      byId('outSETax').textContent = money(seTax);
+      byId('outStateTax').textContent = money(stateTax);
+      byId('outWH').textContent = money(withholdings);
+      const dueTxt = (refund>=0? 'Refund ↑ ' : 'Amount Due ↓ ');
+      byId('outRefund').textContent = dueTxt + money(Math.abs(refund));
+    }
+
+    function parseAdj(text){
+      return (text||'').split(/\n+/).map(s=>s.trim()).filter(Boolean).reduce((sum,line)=>{
+        const m=line.match(/^([+\-])\s*(\d+(?:\.\d{1,2})?)/); if(!m) return sum; const sign=m[1]==='-'?-1:1; return sum + sign*parseFloat(m[2]);
+      },0);
+    }
+
+    function renderStateJson(){ byId('stateJson').textContent = JSON.stringify(states, null, 2); }
+
+    // ---------- Receipt ----------
+    function generateReceipt(){
+      const now = new Date(); const id = 'RCPT-' + now.toISOString().slice(0,10) + '-' + Math.random().toString(36).slice(2,7).toUpperCase();
+      const body = `
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div><strong>Course Demo Tax Prep</strong><div class="note">Training receipt</div></div>
+          <div style="text-align:right"><div><strong>#</strong> ${id}</div><div>${now.toLocaleString()}</div></div>
+        </div>
+        <hr style=\"border-color:#1f2937\"/>
+        <div>Tier: <strong>${data['pay.tier']||'Basic'}</strong> • Method: <strong>${data['pay.method']||'Card'}</strong></div>
+        <div class="note" style="margin-top:6px">Notes: ${data['pay.notes']||'(none)'} </div>`;
+      byId('receiptBody').innerHTML = body; byId('receiptPanel').style.display = 'block';
+    }
+
+    // ---------- Buttons ----------
+    document.getElementById('saveBtn').addEventListener('click',()=>{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); alert('Saved locally.'); });
+    document.getElementById('clearBtn').addEventListener('click',()=>{ if(confirm('Clear all saved inputs?')){ localStorage.removeItem(STORAGE_KEY); location.reload(); } });
+    document.getElementById('printBtn').addEventListener('click',()=>window.print());
+    document.getElementById('genReceipt').addEventListener('click', generateReceipt);
+    document.getElementById('markPaid').addEventListener('click',()=>{ byId('paidBadge').style.display='inline-block'; });
+    document.getElementById('toResults').addEventListener('click',()=> showPage(pages.findIndex(p=>p.id==='page-results')));
+
+    // ---------- Household (Dependents) ----------
+    function ensureDeps(){ if(!Array.isArray(data.deps)) data.deps = []; }
+    function renderDeps(){
+      ensureDeps();
+      const wrap = document.getElementById('depsList');
+      if(!wrap) return;
+      wrap.innerHTML = '';
+      if(!data.deps.length){
+        const empty = document.createElement('div');
+        empty.className='note'; empty.textContent='No dependents added yet.'; wrap.appendChild(empty);
+      }
+      data.deps.forEach((d,idx)=>{
+        const card = document.createElement('div');
+        card.className='panel'; card.style.padding='12px'; card.style.margin='8px 0';
+        card.innerHTML = `
+          <div class="grid cols-2">
+            <div>
+              <label>Name</label><input data-field="name" data-idx="${idx}" value="${d.name||''}" placeholder="Full name" />
+              <label>SSN (demo)</label><input data-field="ssn" data-idx="${idx}" value="${d.ssn||''}" placeholder="000-00-0000" />
+            </div>
+            <div>
+              <label>DOB</label><input data-field="dob" data-idx="${idx}" type="date" value="${d.dob||''}" />
+              <label>Relationship</label><input data-field="rel" data-idx="${idx}" value="${d.rel||''}" placeholder="son/daughter/other" />
+              <div class="row" style="margin-top:8px"><button class="btn ghost" data-remove="${idx}">Remove</button></div>
+            </div>
+          </div>`;
+        wrap.appendChild(card);
+      });
+    }
+    function addDep(){ ensureDeps(); data.deps.push({name:'',ssn:'',dob:'',rel:''}); schedulePersist(); renderDeps(); }
+    function removeDep(i){ ensureDeps(); data.deps.splice(i,1); schedulePersist(); renderDeps(); }
+
+    document.addEventListener('input', (e)=>{
+      const t = e.target; if(t && t.hasAttribute('data-field')){
+        const i = parseInt(t.getAttribute('data-idx')); const f = t.getAttribute('data-field');
+        if(!isNaN(i)){ ensureDeps(); data.deps[i] = Object.assign({}, data.deps[i], { [f]: t.value }); schedulePersist(); }
+      }
+    });
+    document.addEventListener('click', (e)=>{
+      const t=e.target; if(t && t.hasAttribute('data-remove')){ const i=parseInt(t.getAttribute('data-remove')); if(!isNaN(i)) removeDep(i); }
+    });
+
+    // ---------- Init ----------
+    (function init(){
+      registerInputs();
+      ensureDeps();
+      renderDeps();
+      const addBtn = document.getElementById('addDepBtn'); if(addBtn) addBtn.addEventListener('click', addDep);
+      showPage(0);
+      renderStateJson();
+    })();
+  </script>
+</body>
+</html>
